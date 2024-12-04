@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Trash Toss Server</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    #findButton {
+      display: none; /* Initially hide the button */
+    }
+    #sensorChart {
+    width: 100%;   /* Adjust the displayed width */
+    height: 50vh;  /* Adjust the displayed height */
+    }
+  </style>
+</head>
+<body>
+  <h2>Trash Can #1 Data</h2>
+  <p id = "trashFull"></p>
+
+  <!-- Button to locate trash bin -->
+  <button id = "findButton" onclick="checkCheckbox()">Locate trash bin</button>
+  <!-- <input type="checkbox" id="myCheckbox" onclick="checkCheckbox()">
+  <label for="myCheckbox">Check this box if nearby and ready to collect trash</label> -->
+  <p id = "highTrafficTimes"></p>
+  <canvas id="sensorChart" width="150" height="100"></canvas>
+  <br>
+ 
+  <script>
+    const arduino_ip = 'http://192.168.1.144/data'; 
+    const refresh_rate = 1000;
+    const traffic_thres = 10;
+
+    let distance = [];
+    let prevScore = 0;
+    let daily_time = new Array(60).fill(0);
+    console.log(daily_time);
+    let high_traffic_times = [];
+    let sum = 0;
+    let trashFull = false;
+
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [], // X-axis labels (time)
+        datasets: [{
+          label: 'Trash deposited over time',
+          borderColor: 'red',
+          data: []
+        }
+        ]
+      },
+      options: {
+        scales: {
+          x: { display: true, title: { display: true, text: 'Time' }},
+          y: { display: true, title: { display: true, text: 'Score' }}
+        }
+      }
+    });
+
+    const sendData = async () => {
+      const url = arduino_ip; // Replace with your Arduino's IP and endpoint
+
+      // Data to send in the POST request
+      const data = "readyToCollect";
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST', // Use POST method
+          headers: {
+            'Content-Type': 'text/plain', // Specify the data type being sent
+            
+          },
+          body: data, // Convert JavaScript object to JSON string
+        });
+
+        // Handle the response
+        if (response.ok) {
+          const responseData = await response.json(); // Parse JSON response (if any)
+          console.log('Response:', responseData);
+        } else {
+          console.error('POST request failed with status:', response.status);
+        }
+      } catch (error) {
+        console.error('Error sending POST request:', error);
+      }
+    };
+
+    // JavaScript function to check the checkbox state
+    function checkCheckbox() {
+      // const checkbox = document.getElementById("myCheckbox");
+      // if (checkbox.checked) {
+      alert("Trash can emitting sound!");
+      sendData();
+      // } else {
+        // alert("Turned off sound.");
+        // sendData(false);
+      // }
+    }
+
+    // function derivative(vector, dt = 1) {
+    //   const derivativeVector = [];
+      
+    //   for (let i = 0; i < vector.length - 1; i++) {
+    //     const dx = (vector[i + 1][0] - vector[i][0]) / dt; // Derivative of x component
+    //     derivativeVector.push([dx, dy]);
+    //   }
+
+    //   return derivativeVector;
+    // }
+
+    async function fetchData() {
+      try {
+        const response = await fetch(arduino_ip); // Replace with your Arduino IP address
+        const data = await response.json();
+        // console.log(data);
+
+        distance.push(data.distance);
+        if (distance.length > 1000*10/refresh_rate) {
+          distance.shift();
+          avg_dist = distance.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / distance.length;
+          if (avg_dist < 20 & avg_dist > 0) {
+            trashFull = true;
+            sendData();
+          }
+          else {
+            trashFull = false;
+          }
+        }
+        console.log(distance)
+
+        if (trashFull) {
+          document.getElementById("trashFull").innerText = "Trash full, needs emptying!";
+          document.getElementById("findButton").style.display = "block";
+        } else {
+          document.getElementById("trashFull").innerText = "Trash not full";
+          document.getElementById("findButton").style.display = "none";
+        }
+
+        // Add the new data points to the chart
+        const date = new Date()
+        const time = date.toLocaleTimeString();
+        // const hour = date.getHours();
+        const min = date.getMinutes();
+        // const sec = date.getSeconds();
+        // const h_m_s = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        chart.data.labels.push(time);
+        chart.data.datasets[0].data.push(data.score);
+        if(data.score > prevScore) {
+          daily_time[min] += 1;
+          console.log(daily_time);
+        }
+        daily_time.forEach(element => {
+          if (element > traffic_thres) {
+            if(high_traffic_times.indexOf(daily_time.indexOf(element)) == -1) {
+              high_traffic_times.push(daily_time.indexOf(element));
+            }
+          }
+        });
+        console.log(high_traffic_times);
+        if(high_traffic_times.length == 0) {
+          document.getElementById("highTrafficTimes").innerText = "No traffic data available yet.";
+        } else {
+          document.getElementById("highTrafficTimes").innerText = "High traffic minutes: " + high_traffic_times.join(', ');
+        }
+        prevScore = data.score;
+        // console.log(prevScore);
+        // local_score.push({x: h_m_s, y: data.score});
+        // daily_time.push(h_m_s);
+
+        chart.update();
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // Fetch data every second
+    setInterval(fetchData, refresh_rate);
+  </script>
+</body>
+</html>
