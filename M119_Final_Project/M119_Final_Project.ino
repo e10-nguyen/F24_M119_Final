@@ -5,14 +5,16 @@
 
 const int trigPin = 2;         // GPIO Pins for Ultrasonic Sensor
 const int echoPin = 3;
-const int speakerPin = 9;      // PWM-capable pin for Audio Output
+const int speakerPin = 14;      // PWM-capable pin for Audio Output
 
 const unsigned int sampleRate = 8000;  // Sample rate in Hz
 volatile unsigned int sampleIndex = 0;
 
+const int thres = 20; // threshold distance for trash can
+
 float duration, distance;
 int score = 0;                 // Score for trash deposited events
-bool previousStateOver100 = true;  // Track if the previous state was over 100 cm
+bool previousStateOverThres = true;  // Track if the previous state was over 100 cm
 
 char ssid[] = SECRET_SSID;     // Your network SSID (name)
 char pass[] = SECRET_PASS;     // Your network password (WPA)
@@ -63,12 +65,12 @@ void loop() {
   distance = (duration * 0.0343) / 2;  // Calculate distance in cm
 
   // Check if the distance changed from over 100 cm to less than 100 cm
-  if (previousStateOver100 && distance < 100 && distance > 0) {
+  if (previousStateOverThres && distance < thres && distance > 0) {
     score++;
     playAudioSamples();  // Play audio when trash is deposited
-    previousStateOver100 = false;
-  } else if (distance >= 100) {
-    previousStateOver100 = true;
+    previousStateOverThres = false;
+  } else if (distance >= thres) {
+    previousStateOverThres = true;
   }
 
   // Serve the web page or send data when a client is connected
@@ -102,7 +104,7 @@ void loop() {
       client.println("  fetch('/data').then(response => response.json()).then(data => {");
       client.println("    document.getElementById('distance').innerHTML = 'Distance: ' + data.distance + ' cm';");
       client.println("    document.getElementById('score').innerHTML = 'Score: ' + data.score;");
-      client.println("    if (data.distance < 100) {");
+      client.println("    if (data.distance < 100 && data.distance > 0) {");
       client.println("      document.getElementById('message').innerHTML = 'Trash Deposited!';");
       client.println("    } else {");
       client.println("      document.getElementById('message').innerHTML = '';");
@@ -125,11 +127,14 @@ void loop() {
 }
 
 void playAudioSamples() {
-  for (sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
-    analogWrite(speakerPin, samples[sampleIndex] / 4);  // Scale to 0-63 for PWM duty cycle
-    delayMicroseconds(1000000 / sampleRate);            // Wait for the sample period
-  }
+  tone(speakerPin, 440);
+  // for (sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+  //   analogWrite(speakerPin, samples[sampleIndex] / 4);  // Scale to 0-63 for PWM duty cycle
+  //   delayMicroseconds(1000000 / sampleRate);            // Wait for the sample period
+  // }
+  delay(1000);
   noTone(speakerPin);  // Stop tone after playback
+  delay(100);
 }
 
 // Serially print Wi-Fi status

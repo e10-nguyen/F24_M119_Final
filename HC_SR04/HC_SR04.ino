@@ -7,7 +7,7 @@ volatile unsigned int sampleIndex = 0;
 
 const int trigPin = 2;
 const int echoPin = 3;
-const int speakerPin = 9; // PWM-capable pin
+const int speakerPin = 14; // PWM-capable pin
 volatile bool playAudio = false;
 
 float duration, distance;
@@ -31,12 +31,12 @@ void loop() {
   distance = (duration*.0343)/2;
   Serial.print("Distance: ");
   Serial.println(distance);
-  // delay(100);
+  delay(100);
 
   // Play a tone at 440 Hz (A4 note)
-  if(distance < 60 && distance != 0) {
-    // playAudioSamples();
-    // Serial.println("Trying to play audio file.");
+  if(distance < 20 && distance > 0) {
+    playAudioSamples();
+    Serial.println("Trying to play audio file.");
     tone(speakerPin, 440);
     Serial.println("Played tone");
     delay(1000); // Play for 1 second
@@ -50,7 +50,7 @@ void loop() {
 void playAudioSamples() {
   if (sampleIndex < sampleCount) {
     // Output the current audio sample as PWM
-    tone(speakerPin, samples[sampleIndex] / 4); // Scale to 0-63 for PWM duty cycle
+    analogWrite(speakerPin, samples[sampleIndex] / 4); // Scale to 0-63 for PWM duty cycle
     delayMicroseconds(1000000 / sampleRate);         // Wait for the sample period
     sampleIndex++;
   } else {
